@@ -10,6 +10,8 @@ Single-file HTML experience for **Internoun — Survive the Timeline** with:
 ## Project Structure
 
 - `index.html`: Main app (UI + game logic + submit flow)
+- `.env.example`: Required environment variables
+- `scripts/build.mjs`: Build script that injects `.env` into `dist/index.html`
 
 ## What Gets Collected
 
@@ -68,26 +70,39 @@ with check (true);
 
 > Optional hardening: add rate limits with Edge Functions or a server proxy.
 
-## App Configuration
+## Environment Variables
 
-The current app reads constants directly in `internoun-dao-deck (12).html`:
+Copy `.env.example` to `.env` and fill values:
+
+```bash
+cp .env.example .env
+```
+
+Required keys:
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `SUPABASE_TABLE`
 
-Replace placeholders with your real values.
+## Build (Inject `.env` into HTML)
 
-## Environment Variables
+Install dependencies:
 
-This repo includes `.env.example` for standardization.
+```bash
+npm install
+```
 
-Because this is a plain HTML file, `.env` is **not automatically loaded** by the browser.
-Use one of these approaches:
+Build static output with env injection:
 
-1. Build tool (Vite/Next/Webpack) and inject env vars at build time
-2. A pre-deploy replacement script
-3. Move submit logic to a backend endpoint (recommended for stronger security)
+```bash
+npm run build
+```
+
+This generates:
+
+- `dist/index.html` (with real Supabase values injected)
+
+Deploy `dist/index.html`, not the root `index.html` placeholder template.
 
 ## Security Notes
 
@@ -97,17 +112,20 @@ Use one of these approaches:
 
 ## Local Run
 
-Open `index.html` in a browser, or serve the folder:
+Build first, then serve `dist/`:
 
 ```bash
-python3 -m http.server 8080
+npm run build
+python3 -m http.server 8080 --directory dist
 ```
 
-Then visit `http://localhost:8080`.
+Alternative (quick visual check only): open root `index.html` directly.
+Note this file still contains placeholders intended for build-time replacement.
 
 ## Deployment Checklist
 
-- [ ] Set real Supabase URL/key/table
+- [ ] Fill `.env` with real Supabase values
+- [ ] Run `npm run build` and deploy `dist/index.html`
 - [ ] Create table + RLS policy
 - [ ] Verify inserts from start screen and end screen
 - [ ] Confirm ENS is optional and stored correctly
