@@ -97,7 +97,7 @@ Use one of these approaches:
 
 ## Local Run
 
-Open `internoun-dao-deck (12).html` in a browser, or serve the folder:
+Open `index.html` in a browser, or serve the folder:
 
 ```bash
 python3 -m http.server 8080
