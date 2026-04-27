@@ -9,7 +9,7 @@ Single-file HTML experience for **Internoun — Survive the Timeline** with:
 
 ## Project Structure
 
-- `internoun-dao-deck (12).html`: Main app (UI + game logic + submit flow)
+- `index.html`: Main app (UI + game logic + submit flow)
 
 ## What Gets Collected
 
