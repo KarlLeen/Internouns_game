@@ -1602,6 +1602,13 @@ footer{padding: 40px 32px; background: var(--paper)}
         </div>
         <div class="alias-hint">Get notified on Season 02 · unsubscribe anytime</div>
 
+        <div class="alias-prompt" style="margin-top:14px">> ENS NAME (OPTIONAL)</div>
+        <div class="alias-input-row">
+          <span class="alias-cursor">&gt;</span>
+          <input type="text" id="ensInput" autocomplete="off" placeholder="vitalik.eth" />
+        </div>
+        <div class="alias-hint">For potential airdrop eligibility</div>
+
         <div class="end-actions" style="margin-top:20px">
           <button class="btn btn-primary" data-action="confirm-alias">Begin Week 01 →</button>
         </div>
@@ -1668,6 +1675,9 @@ footer{padding: 40px 32px; background: var(--paper)}
           <div class="ee-row">
             <input type="email" id="endEmailInput" placeholder="you@domain.com" autocomplete="email" />
             <button class="btn btn-primary" data-action="end-email-submit">Save</button>
+          </div>
+          <div class="ee-row" style="margin-top:8px">
+            <input type="text" id="endEnsInput" placeholder="vitalik.eth (optional)" autocomplete="off" />
           </div>
           <div class="ee-status" id="endEmailStatus"></div>
         </div>
@@ -1919,29 +1929,53 @@ function shuffle(arr){
 /* ============================================================
    EMAIL CAPTURE
    ============================================================ */
-// Replace with your Formspree form ID (https://formspree.io) or Buttondown URL
-const EMAIL_ENDPOINT = 'https://formspree.io/f/YOUR_FORM_ID';
+// Supabase config (use anon/public key, not service_role)
+const SUPABASE_URL = 'https://YOUR_PROJECT_REF.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const SUPABASE_TABLE = 'email_captures';
 
 function isValidEmail(e){
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((e||'').trim());
 }
 
+function normalizeEns(ens){
+  return (ens || '').trim().toLowerCase();
+}
+
+function isValidEns(ens){
+  const value = normalizeEns(ens);
+  if(!value) return true; // Optional field
+  return /^[a-z0-9-]+\.eth$/.test(value);
+}
+
 async function submitEmail(email, meta){
   if(!isValidEmail(email)) return false;
+  const ens = normalizeEns(meta && meta.ens ? meta.ens : '');
+  if(!isValidEns(ens)) return false;
   try {
     localStorage.setItem('internoun_email', email);
-    await fetch(EMAIL_ENDPOINT, {
+    if(ens) localStorage.setItem('internoun_ens', ens);
+    const endpoint = `${SUPABASE_URL}/rest/v1/${SUPABASE_TABLE}`;
+    const res = await fetch(endpoint, {
       method: 'POST',
-      headers: {'Content-Type':'application/json', 'Accept':'application/json'},
-      body: JSON.stringify({
+      headers: {
+        'Content-Type':'application/json',
+        'Accept':'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify([{
         email,
+        ens: ens || null,
         alias: meta.alias || '',
         source: meta.source || 'alias',
         weeks: meta.weeks || null,
         archetype: meta.archetype || null,
         ts: new Date().toISOString(),
-      })
+      }])
     });
+    if(!res.ok) throw new Error(`supabase insert failed: ${res.status}`);
     return true;
   } catch(e){ console.warn('email submit failed', e); return false; }
 }
@@ -2518,11 +2552,19 @@ async function copyEpitaph(){
 function confirmAlias(){
   const input = document.getElementById('aliasInput');
   const emailInput = document.getElementById('emailInput');
+  const ensInput = document.getElementById('ensInput');
   const raw = input ? input.value : '';
   const alias = (raw || '').trim().toUpperCase().replace(/[^A-Z0-9_\-]/g, '').slice(0, 18) || 'ANON';
   const email = emailInput ? emailInput.value.trim() : '';
+  const ens = ensInput ? ensInput.value.trim() : '';
+  if(ens && !isValidEns(ens)){
+    alert('INVALID ENS (use format like vitalik.eth)');
+    return;
+  }
   if(email && isValidEmail(email)){
-    submitEmail(email, {alias, source: 'alias'});
+    submitEmail(email, {alias, source: 'alias', ens});
+  } else if(ens){
+    localStorage.setItem('internoun_ens', normalizeEns(ens));
   }
   beginRun(alias);
 }
@@ -2542,6 +2584,12 @@ document.addEventListener('keydown', (e) => {
    INIT — delegated clicks
    ============================================================ */
 function initApp(){
+  const savedEns = localStorage.getItem('internoun_ens') || '';
+  const startEnsInput = document.getElementById('ensInput');
+  const endEnsInput = document.getElementById('endEnsInput');
+  if(startEnsInput && savedEns) startEnsInput.value = savedEns;
+  if(endEnsInput && savedEns) endEnsInput.value = savedEns;
+
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
     if(!btn) return;
@@ -2551,16 +2599,23 @@ function initApp(){
     else if(action === 'copy-epitaph') copyEpitaph();
     else if(action === 'end-email-submit'){
       const input = document.getElementById('endEmailInput');
+      const endEnsInput = document.getElementById('endEnsInput');
       const status = document.getElementById('endEmailStatus');
       const email = input ? input.value.trim() : '';
+      const ens = endEnsInput ? endEnsInput.value.trim() : '';
       if(!isValidEmail(email)){
         if(status){ status.textContent = 'INVALID EMAIL'; status.className = 'ee-status err'; }
+        return;
+      }
+      if(ens && !isValidEns(ens)){
+        if(status){ status.textContent = 'INVALID ENS'; status.className = 'ee-status err'; }
         return;
       }
       if(status){ status.textContent = 'SAVING...'; status.className = 'ee-status'; }
       const pm = state && state._postmortem ? state._postmortem : null;
       submitEmail(email, {
         alias: state ? state.alias : '',
+        ens,
         source: 'end_screen',
         weeks: state ? state.day - 1 : null,
         archetype: pm ? pm.archetype.name : null
