@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Internoun — Survive the Timeline</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1939,7 +1939,12 @@ function isValidEmail(e){
 }
 
 function normalizeEns(ens){
-  return (ens || '').trim().toLowerCase();
+  let value = (ens || '').trim().toLowerCase();
+  // Tolerate pasted/mobile prefixed symbols like "• vitalik.eth"
+  value = value.replace(/^[\s\u2022\u00b7>.-]+/, '');
+  // ENS names should not contain spaces
+  value = value.replace(/\s+/g, '');
+  return value;
 }
 
 function isValidEns(ens){
@@ -2402,6 +2407,8 @@ function checkMilestone(){
    ============================================================ */
 function startGame(){
   // Show alias prompt first
+  // Telegram Mini App 环境下最好避免页面可滚动导致的布局跳动
+  document.body.style.overflow = 'hidden';
   document.getElementById('aliasScreen').classList.add('active');
   const input = document.getElementById('aliasInput');
   if(input){
@@ -2583,12 +2590,43 @@ document.addEventListener('keydown', (e) => {
 /* ============================================================
    INIT — delegated clicks
    ============================================================ */
+function initTelegramMiniApp(){
+  const tg = window.Telegram && window.Telegram.WebApp;
+  if(!tg) return;
+  try{
+    tg.ready();
+    tg.expand();
+
+    // 让 Telegram 顶栏背景尽量和页面“起始态”一致
+    const paper = getComputedStyle(document.documentElement).getPropertyValue('--paper').trim() || '#F2EFE9';
+    tg.setBackgroundColor?.(paper);
+    tg.setHeaderColor?.(paper);
+  } catch(e){}
+}
+function maybeAutoStartFromQuery(){
+  const sp = new URLSearchParams(window.location.search);
+  const autostart = sp.get('autostart');
+  if(!autostart) return;
+
+  // 规则：
+  // - ?autostart=1                  => 弹出别名输入框
+  // - ?autostart=1&alias=ANON     => 直接开始一局（使用该别名）
+  const alias = sp.get('alias');
+  if(alias && alias.trim()){
+    beginRun(alias.trim());
+  } else {
+    startGame();
+  }
+}
 function initApp(){
+  initTelegramMiniApp();
   const savedEns = localStorage.getItem('internoun_ens') || '';
   const startEnsInput = document.getElementById('ensInput');
   const endEnsInput = document.getElementById('endEnsInput');
   if(startEnsInput && savedEns) startEnsInput.value = savedEns;
   if(endEnsInput && savedEns) endEnsInput.value = savedEns;
+
+  maybeAutoStartFromQuery();
 
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-action]');
